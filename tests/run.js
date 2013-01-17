@@ -11,6 +11,7 @@ var utils        = require('utils');
 var f            = utils.format;
 var loadIncludes = ['includes', 'pre', 'post'];
 var tests        = [];
+var tests_args   = [];
 var casper       = require('casper').create({
     exitOnError: false
 });
@@ -62,6 +63,11 @@ function checkArgs() {
     }
     casper.test.options.concise = casper.cli.get('concise') || false;
     casper.test.options.failFast = casper.cli.get('fail-fast') || false;
+    if (casper.cli.has('testArgs')) {
+      casper.test.options.args = casper.cli.get('test-args').split(',');
+    } else {
+      casper.test.options.args = []
+    }
 
     // test paths are passed as args
     if (casper.cli.args.length) {
