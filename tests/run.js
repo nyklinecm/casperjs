@@ -63,7 +63,7 @@ function checkArgs() {
     }
     casper.test.options.concise = casper.cli.get('concise') || false;
     casper.test.options.failFast = casper.cli.get('fail-fast') || false;
-    if (casper.cli.has('testArgs')) {
+    if (casper.cli.has('test-args')) {
       casper.test.options.args = casper.cli.get('test-args').split(',');
     } else {
       casper.test.options.args = []
