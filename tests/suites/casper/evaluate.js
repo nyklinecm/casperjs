@@ -1,5 +1,5 @@
 /*global casper*/
-/*jshint strict:false maxparams:99*/
+/*jshint strict:false, maxparams:99*/
 casper.test.begin('mapping argument context', 1, function(test) {
     casper.start();
     var context = {
@@ -86,6 +86,26 @@ casper.test.begin('thenEvaluate() tests', 2, function(test) {
         test.assertEquals(this.getGlobal('b'), "bar",
             "Casper.thenEvaluate() sets args the same way evaluate() does");
     });
+    casper.run(function() {
+        test.done();
+    });
+});
+
+// https://github.com/n1k0/casperjs/issues/489
+// https://groups.google.com/forum/?fromgroups=#!topic/casperjs/95IgDMFnEKM
+casper.test.begin("evaluate() returns a value which can be altered", 1, function(test) {
+    var list;
+
+    casper.start().then(function() {
+        list = this.evaluate(function() {
+            return [{a: 1}, {b: 2}];
+        });
+        var first = list[0];
+        first.a = 42;
+        test.assertEquals(list, [{a: 42}, {b: 2}],
+            'evaluate() returns a cloned value which can be altered');
+    });
+
     casper.run(function() {
         test.done();
     });

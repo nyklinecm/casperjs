@@ -1,10 +1,11 @@
-/*global phantom CasperError*/
+/*global phantom, CasperError, patchRequire, require:true, casper:true*/
 
 if (!phantom.casperLoaded) {
     console.log('This script must be invoked using the casperjs executable');
     phantom.exit(1);
 }
 
+var require      = patchRequire(require);
 var fs           = require('fs');
 var colorizer    = require('colorizer');
 var utils        = require('utils');
@@ -54,8 +55,6 @@ function checkIncludeFile(include) {
 function checkArgs() {
     "use strict";
     // parse some options from cli
-    casper.options.verbose = casper.cli.get('direct') || false;
-    casper.options.logLevel = casper.cli.get('log-level') || "error";
     if (casper.cli.get('no-colors') === true) {
         var cls = 'Dummy';
         casper.options.colorizerType = cls;

@@ -28,8 +28,9 @@
  *
  */
 
-/*global CasperError console exports phantom require*/
+/*global CasperError, console, exports, phantom, patchRequire, require:true*/
 
+var require = patchRequire(require);
 var utils = require('utils');
 var fs = require('fs');
 var TestSuiteResult = require('tester').TestSuiteResult;
@@ -82,7 +83,8 @@ function XUnitExporter() {
     this.results = undefined;
     this._xml = utils.node('testsuites');
     this._xml.toString = function toString() {
-        return '<?xml version="1.0" encoding="UTF-8"?>' + this.outerHTML; // ouch
+        var serializer = new XMLSerializer();
+        return '<?xml version="1.0" encoding="UTF-8"?>' + serializer.serializeToString(this);
     };
 }
 exports.XUnitExporter = XUnitExporter;
@@ -165,5 +167,6 @@ XUnitExporter.prototype.setResults = function setResults(results) {
     if (!(results instanceof TestSuiteResult)) {
         throw new CasperError('Invalid results type.');
     }
-    return this.results = results;
+    this.results = results;
+    return results;
 };

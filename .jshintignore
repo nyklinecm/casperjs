@@ -2,7 +2,9 @@ docs
 modules/vendors
 modules/events.js
 modules/querystring.js
-samples
-tests/site
-tests/testdir
+samples/**
+tests/clitests/**
+tests/testdir/**
 tmp
+./*.js
+./phantomjs*/*

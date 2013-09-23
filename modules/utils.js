@@ -28,7 +28,9 @@
  *
  */
 
-/*global CasperError console exports phantom require*/
+/*global CasperError, console, exports, phantom, patchRequire, require:true*/
+
+var require = patchRequire(require);
 
 /**
  * Provides a better typeof operator equivalent, able to retrieve the array
@@ -50,7 +52,17 @@ function betterTypeOf(input) {
             return 'null';
         default:
         try {
-            return Object.prototype.toString.call(input).match(/^\[object\s(.*)\]$/)[1].toLowerCase();
+            var type = Object.prototype.toString.call(input).match(/^\[object\s(.*)\]$/)[1].toLowerCase();
+            if (type === 'object' &&
+                phantom.casperEngine !== "phantomjs" &&
+                '__type' in input) {
+                type = input.__type;
+            }
+            // gecko returns window instead of domwindow
+            else if (type === 'window') {
+                return 'domwindow';
+            }
+            return type;
         } catch (e) {
             return typeof input;
         }
@@ -59,23 +71,46 @@ function betterTypeOf(input) {
 exports.betterTypeOf = betterTypeOf;
 
 /**
- * Cleans a passed URL if it lacks a slash at the end when a sole domain is used.
+ * Provides a better instanceof operator, capable of checking against the full object prototype hierarchy.
+ *
+ * @param  mixed  input
+ * @param  function constructor
+ * @return String
+ * @see    https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Details_of_the_Object_Model
+ */
+function betterInstanceOf(input, constructor) {
+    "use strict";
+    /*jshint eqnull:true, eqeqeq:false */
+    while (input != null) {
+      if (input == constructor.prototype) {
+        return true;
+      }
+      if (typeof input == 'xml') {
+        return constructor.prototype == document.prototype;
+      }
+      if (typeof input == 'undefined') {
+        return false;
+      }
+      input = input.__proto__;
+   }
+   return false;
+}
+exports.betterInstanceOf = betterInstanceOf;
+
+/**
+ * Cleans a passed URL.
  *
  * @param  String  url An HTTP URL
  * @return String
  */
 function cleanUrl(url) {
     "use strict";
-    var parts = /(https?):\/\/(.*)/i.exec(url);
-    if (!parts) {
+    if (url.toLowerCase().indexOf('http') !== 0) {
         return url;
     }
-    var protocol = parts[1];
-    var subparts = parts[2].split('/');
-    if (subparts.length === 1) {
-        return format("%s://%s/", protocol, subparts[0]);
-    }
-    return url;
+    var a = document.createElement('a');
+    a.href = url;
+    return a.href;
 }
 exports.cleanUrl = cleanUrl;
 
@@ -90,6 +125,46 @@ function clone(o) {
     return JSON.parse(JSON.stringify(o));
 }
 exports.clone = clone;
+
+/**
+ * Computes a modifier string to its PhantomJS equivalent. A modifier string is
+ * in the form "ctrl+alt+shift".
+ *
+ * @param  String  modifierString  Modifier string, eg. "ctrl+alt+shift"
+ * @param  Object  modifiers       Modifiers definitions
+ * @return Number
+ */
+function computeModifier(modifierString, modifiers) {
+    "use strict";
+    var modifier = 0,
+        checkKey = function(key) {
+            if (key in modifiers) return;
+            throw new CasperError(format('%s is not a supported key modifier', key));
+        };
+    if (!modifierString) return modifier;
+    var keys = modifierString.split('+');
+    keys.forEach(checkKey);
+    return keys.reduce(function(acc, key) {
+        return acc | modifiers[key];
+    }, modifier);
+}
+exports.computeModifier = computeModifier;
+
+/**
+ * Decodes a URL.
+ * @param  String  url
+ * @return String
+ */
+function decodeUrl(url) {
+    "use strict";
+    try {
+        return decodeURIComponent(url);
+    } catch (e) {
+        /*global unescape*/
+        return unescape(url);
+    }
+}
+exports.decodeUrl = decodeUrl;
 
 /**
  * Dumps a JSON representation of passed value to the console. Used for
@@ -115,8 +190,10 @@ function equals(v1, v2) {
     if (isFunction(v1)) {
         return v1.toString() === v2.toString();
     }
-    if (v1 instanceof Object) {
-        if (Object.keys(v1).length !== Object.keys(v2).length) {
+    // with Gecko, instanceof is not enough to test object
+    if (v1 instanceof Object || isObject(v1)) {
+        if (!(v2 instanceof Object || isObject(v2)) ||
+            Object.keys(v1).length !== Object.keys(v2).length) {
             return false;
         }
         for (var k in v1) {
@@ -425,6 +502,18 @@ function isObject(value) {
 exports.isObject = isObject;
 
 /**
+ * Checks if value is a RegExp
+ *
+ * @param  mixed  value
+ * @return Boolean
+ */
+function isRegExp(value) {
+    "use strict";
+    return isType(value, "regexp");
+}
+exports.isRegExp = isRegExp;
+
+/**
  * Checks if value is a javascript String
  *
  * @param  mixed  value
@@ -490,7 +579,7 @@ function isValidSelector(value) {
             // phantomjs env has a working document object, let's use it
             document.querySelector(value);
         } catch(e) {
-            if ('name' in e && e.name === 'SYNTAX_ERR') {
+            if ('name' in e && (e.name === 'SYNTAX_ERR' || e.name === 'SyntaxError')) {
                 return false;
             }
         }
@@ -523,6 +612,32 @@ function isWebPage(what) {
 }
 exports.isWebPage = isWebPage;
 
+
+
+function isPlainObject(obj) {
+    "use strict";
+    if (!obj || typeof(obj) !== 'object')
+        return false;
+    var type = Object.prototype.toString.call(obj).match(/^\[object\s(.*)\]$/)[1].toLowerCase();
+    return (type === 'object');
+}
+
+function mergeObjectsInSlimerjs(origin, add) {
+    "use strict";
+    for (var p in add) {
+        if (isPlainObject(add[p])) {
+            if (isPlainObject(origin[p])) {
+                origin[p] = mergeObjects(origin[p], add[p]);
+            } else {
+                origin[p] = clone(add[p]);
+            }
+        } else {
+            origin[p] = add[p];
+        }
+    }
+    return origin;
+}
+
 /**
  * Object recursive merging utility.
  *
@@ -532,15 +647,22 @@ exports.isWebPage = isWebPage;
  */
 function mergeObjects(origin, add) {
     "use strict";
+
+    if (phantom.casperEngine === 'slimerjs') {
+        // Because of an issue in the module system of slimerjs (security membranes?)
+        // constructor is undefined.
+        // let's use an other algorithm
+        return mergeObjectsInSlimerjs(origin, add);
+    }
     for (var p in add) {
-        try {
-            if (add[p].constructor === Object) {
+        if (add[p] && add[p].constructor === Object) {
+            if (origin[p] && origin[p].constructor === Object) {
                 origin[p] = mergeObjects(origin[p], add[p]);
             } else {
-                origin[p] = add[p];
+                origin[p] = clone(add[p]);
             }
-        } catch(e) {
-          origin[p] = add[p];
+        } else {
+            origin[p] = add[p];
         }
     }
     return origin;
@@ -592,6 +714,22 @@ function objectValues(obj) {
     });
 }
 exports.objectValues = objectValues;
+
+/**
+ * Prepares a string for xpath expression with the condition [text()=].
+ *
+ * @param  String  string
+ * @return String
+ */
+function quoteXPathAttributeString(string) {
+    "use strict";
+    if (/"/g.test(string)) {
+        return 'concat("' + string.toString().replace(/"/g, '", \'"\', "') + '")';
+    } else {
+        return '"' + string + '"';
+    }
+}
+exports.quoteXPathAttributeString = quoteXPathAttributeString;
 
 /**
  * Serializes a value using JSON.

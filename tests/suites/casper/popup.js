@@ -1,9 +1,9 @@
-/*jshint strict:false maxstatements:99*/
-/*global CasperError casper console phantom require*/
+/*jshint strict:false, maxstatements:99*/
+/*global CasperError, casper, console, phantom, require*/
 var utils = require('utils');
 var x = require('casper').selectXPath;
 
-casper.test.begin('popup tests', 20, function(test) {
+casper.test.begin('popup tests', 22, function(test) {
     casper.once('popup.created', function(popup) {
         test.pass('"popup.created" event is fired');
         test.assert(utils.isWebPage(popup),
@@ -31,6 +31,10 @@ casper.test.begin('popup tests', 20, function(test) {
     });
 
     casper.withPopup('index.html', function() {
+        test.assertTitle('CasperJS test index',
+            'Casper.withPopup() found a popup with expected title');
+        test.assertTextExists('three',
+            'Casper.withPopup() found a popup with expected text');
         test.assertUrlMatches(/index\.html$/,
             'Casper.withPopup() switched to popup as current active one');
         test.assertEval(function() {
