@@ -252,11 +252,16 @@ CasperError.prototype = Object.getPrototypeOf(new Error());
         function localModulePath(path) {
             return resolveFile(path, phantom.casperScriptBaseDir || fs.workingDirectory);
         }
+        function workingDirModulePath(path) {
+            return resolveFile(path, fs.workingDirectory);
+        }
+
         var patchedRequire = function patchedRequire(path) {
             try {
                 return require(casperBuiltinPath(path) ||
                                nodeModulePath(path)    ||
                                localModulePath(path)   ||
+                               workingDirModulePath(path)   ||
                                path);
             } catch (e) {
                 throw new CasperError("Can't find module " + path);
@@ -282,6 +287,7 @@ CasperError.prototype = Object.getPrototypeOf(new Error());
                 dir = '.';
             }
             phantom.casperScriptBaseDir = dir;
+            console.log(dir);
         }
 
         if (!!casperArgs.options.version) {
