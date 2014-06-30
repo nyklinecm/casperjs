@@ -287,7 +287,6 @@ CasperError.prototype = Object.getPrototypeOf(new Error());
                 dir = '.';
             }
             phantom.casperScriptBaseDir = dir;
-            console.log(dir);
         }
 
         if (!!casperArgs.options.version) {
